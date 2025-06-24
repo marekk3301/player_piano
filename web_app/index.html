@@ -1,0 +1,82 @@
+<input type="file" id="midiFileInput" accept=".mid">
+<button onclick="playMIDI()">Play MIDI</button>
+<pre id="log"></pre>
+
+<!-- Tone.js and ToneJS/Midi -->
+<script src="https://unpkg.com/tone"></script>
+<script src="https://unpkg.com/@tonejs/midi"></script>
+
+<script>
+  const ws = new WebSocket("ws://192.168.0.61:81"); // Replace with your ESP32's IP
+  let commands = [];
+
+  function log(msg) {
+    document.getElementById("log").innerText += msg + "\n";
+  }
+
+  document.getElementById("midiFileInput").addEventListener("change", function(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        const arrayBuffer = e.target.result;
+
+        // Parse MIDI using ToneJS/Midi
+        const midi = new Midi(arrayBuffer);
+
+        // Convert to command list
+        commands = parseMIDIToCommands(midi);
+        log(`Parsed ${commands.length} commands from MIDI file.`);
+    };
+    reader.readAsArrayBuffer(file);
+  });
+
+  function parseMIDIToCommands(midi) {
+  const allNotes = [];
+
+  for (const track of midi.tracks) {
+    for (const note of track.notes) {
+      allNotes.push({
+        name: note.name,
+        time: note.time,
+        duration: note.duration,
+        velocity: note.velocity
+      });
+    }
+  }
+
+  // Sort all notes by absolute time
+  allNotes.sort((a, b) => a.time - b.time);
+
+  const commands = [];
+
+  for (let i = 0; i < allNotes.length; i++) {
+    const note = allNotes[i];
+    const noteNumber = Tone.Frequency(note.name).toMidi();
+    const durationMs = Math.round(note.duration * 1000);
+    const delayMs = Math.round(note.time * 1000);
+    const velocity = Math.round(note.velocity * 127);
+
+    commands.push({
+      note: noteNumber,
+      duration: durationMs,
+      velocity: velocity,
+      delay: delayMs
+    });
+  }
+
+  return commands;
+}
+
+  function playMIDI() {
+    if (commands.length === 0) {
+      log("No commands to play!");
+      return;
+    }
+
+    // Send to ESP32
+    ws.send(JSON.stringify({ type: "play", data: commands }));
+    log("Sent commands to ESP32!");
+  }
+</script>

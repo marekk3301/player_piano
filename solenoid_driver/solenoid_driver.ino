@@ -1,4 +1,3 @@
-// (Arduino UNO)
 #include <Wire.h>
 #include <Adafruit_PWMServoDriver.h>
 
@@ -81,7 +80,9 @@ void handleCommand(String cmd) {
     Serial.println("Note out of range");
     return;
   }
-
+  Serial.print("Playing: ");
+  Serial.println(cmd);
+  Serial.println(millis());
   startNote(note, velocity, duration);
 }
 
